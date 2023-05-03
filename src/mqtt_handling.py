@@ -2,58 +2,65 @@
 #from flask import request
 #from flask_mqtt import Mqtt
 import paho.mqtt.client as mqtt
-import psycopg2
 from datetime import datetime as dt
 import pandas as pd
 from scipy.signal import butter, filtfilt
+import psycopg2
 
-# Setup for database-connection (postgresql)
-print("Connecting to database...")
-conn = psycopg2.connect(
-    host="localhost",
-    database="db_gui",
-    user="postgres",
-    password="master",
-    port="5434")
-print("Successfully connected to database!")
-
-# Define mqtt-settings.
-MQTT_Broker = "158.38.66.180"
-MQTT_Port = 1883
-MQTT_Username = 'ntnu'
-MQTT_Password = 'ntnuais2103'
-MQTT_Keepalive = 5
-
-# Define mqtt-topics
-# subscribe
-MQTT_topic_L160_UnfilteredTemp = 'NTNU/IoT/Group13/L160/UnfilteredTemp'
-MQTT_topic_L160_FilteredTemp = 'NTNU/IoT/Group13/L160/FilteredTemp'
-
-# Define mqtt-client
-mqtt_client = mqtt.Client()
-mqtt_client.username_pw_set(username=MQTT_Username, password=MQTT_Password)
-
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        print("Successfully connected to mqtt-broker!")
-        mqtt_client.subscribe(MQTT_topic_L160_UnfilteredTemp)
-        mqtt_client.subscribe(MQTT_topic_L160_FilteredTemp)
-        # Add more subscriptions here
-    else:
-        print(f"Bad connection. Code: {rc}")
+class MQTT_TO_PG:
+    def __init__(self, _username, _password, _port, _brokerIp, _keepalive):
+        #self.username = username
+        #self.password = password
+        #self.port = port
+        #self.brokerIp = brokerIp
+        #self.keepalive = keepalive
+        self.mqtt_client = mqtt.Client()
+        self.mqtt_client.username_pw_set(username = _username, password = _password)
+        self.mqtt_client.on_connect = self.on_connect
+        self.mqtt_client.on_message = self.on_message
+        print("Connecting to mqtt-broker...")
+        self.mqtt_client.connect(_brokerIp, _port, _keepalive)
         
-def on_message(client, userdata, _msg):
-    # ======= DECODE MESSAGE =======
-    msg = dict(
-        topic=_msg.topic,
-        payload=_msg.payload.decode().split(',')
-    )
-    print(msg)
-
-class MQTT:
-    def __init__(self, topic1):
-        self.topic = topic
-# Sette opp init neste gang HER!
+    def set_topics (self, topic1, topic2, topic3):
+        self.topic1 = topic1
+        self.topic2 = topic2
+        self.topic3 = topic3   
+        
+    def on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            print("Successfully connected to mqtt-broker!")
+            self.mqtt_client.subscribe(self.topic1)
+            self.mqtt_client.subscribe(self.topic2)
+            self.mqtt_client.subscribe(self.topic3)
+        else:
+            print(f"Bad connection. Code: {rc}")
+        
+    def on_message(self, client, userdata, _msg):
+        # ======= DECODE MESSAGE =======
+        msg = dict(
+            topic = _msg.topic,
+            # payload[0] = time or date, payload[1] = value
+            payload=_msg.payload.decode().split(',')
+        )
+        print(msg)
+    
+        query = None
+    
+        # ============== INSERTING SENSOR VALUES ==================
+        if msg['topic'] == self.topic1:
+            query = f"""INSERT INTO log1 (timestamp, value) VALUES(%s, %s);"""
+        elif msg['topic'] == self.topic2:
+            query = f"""INSERT INTO log2  (timestamp, value) VALUES(%s, %s);"""
+        elif msg['topic'] == self.topic3:
+            query = f"""INSERT INTO log3 (timestamp, value) VALUES(%s, %s);"""
+    
+        try:
+            with conn.cursor() as cur:
+                cur.execute(query, msg['payload'])
+                conn.commit()
+        except psycopg2.DatabaseError as error:
+            print(error)
+            return
 
 
 
