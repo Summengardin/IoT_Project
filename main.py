@@ -1,5 +1,6 @@
 import psycopg2
 
+from src import aranet_handling
 from src import mqtt_handling
 
 # ============ API ===============
@@ -20,12 +21,16 @@ MQTT_Password = 'ntnuais2103'
 MQTT_Keepalive = 5
 
 # Define mqtt-topics
-topic1 = 'Gruppe_23_2/Elias/sensordata'
-topic2 = 'Gruppe_23_2/Mathieu/sensordata'
-topic3 = 'Gruppe_23_2/Melina/sensordata'
-topic4 = 'Gruppe_23_2/Martin/sensordata'
+topic1 = 'NTNU/IoT/Group13/L160/UnfilteredTemp'
+topic2 = 'NTNU/IoT/Group13/L160/UnfilteredPressure'
+topic3 = 'NTNU/IoT/Group13/L160/UnfilteredCo2'
+
+def main():
+    ARA = aranet_handling.ARANET(api_key = api_key)
+    ARA.list_sensor_names()
+    MQTT = mqtt_handling.MQTT_TO_PG(MQTT_Username, MQTT_Password, MQTT_Port, MQTT_Broker,MQTT_Keepalive)
 
 if __name__ == '__main__':
-    MQTT = mqtt_handling.MQTT_TO_PG(MQTT_Username, MQTT_Password, MQTT_Port, MQTT_Broker,MQTT_Keepalive)
-    MQTT.set_topics(topic1, topic2, topic3)
-    MQTT.get_client().loop_forever()
+    main()
+    while True:
+        none = None
