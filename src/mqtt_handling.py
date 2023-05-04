@@ -15,20 +15,24 @@ class MQTT_TO_PG:
         self.mqtt_client.on_message = self.on_message
         print("Connecting to mqtt-broker...")
         self.mqtt_client.connect(_brokerIp, _port, _keepalive)
+        print("Connected to mqtt-broker.")
         # ============ POSTGRES ==========
         print("Connecting to database...")
         self.conn = psycopg2.connect(
-            host="localhost",
-            database="db_gui",
+            host="10.0.12.233",
+            database="postgres",
             user="postgres",
-            password="master",
+            password="ntnu",
             port="5432")
         print("Successfully connected to database!")
         
     def set_topics (self, topic1, topic2, topic3):
         self.topic1 = topic1
         self.topic2 = topic2
-        self.topic3 = topic3   
+        self.topic3 = topic3
+    
+    def get_client (self):
+        return self.mqtt_client
         
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
