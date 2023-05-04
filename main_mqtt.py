@@ -27,5 +27,5 @@ topic4 = 'Gruppe_23_2/Martin/sensordata'
 
 if __name__ == '__main__':
     MQTT = mqtt_handling.MQTT_TO_PG(MQTT_Username, MQTT_Password, MQTT_Port, MQTT_Broker,MQTT_Keepalive)
-    MQTT.set_topics(topic1, topic2, topic3)
+    MQTT.set_topics(topic1, topic2, topic3, topic4)
     MQTT.get_client().loop_forever()

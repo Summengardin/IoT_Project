@@ -26,10 +26,11 @@ class MQTT_TO_PG:
             port="5432")
         print("Successfully connected to database!")
         
-    def set_topics (self, topic1, topic2, topic3):
+    def set_topics (self, topic1, topic2, topic3, topic4):
         self.topic1 = topic1
         self.topic2 = topic2
         self.topic3 = topic3
+        self.topic4 = topic4
     
     def get_client (self):
         return self.mqtt_client
@@ -40,6 +41,7 @@ class MQTT_TO_PG:
             self.mqtt_client.subscribe(self.topic1)
             self.mqtt_client.subscribe(self.topic2)
             self.mqtt_client.subscribe(self.topic3)
+            self.mqtt_client.subscribe(self.topic4)
         else:
             print(f"Bad connection. Code: {rc}")
         
@@ -61,6 +63,8 @@ class MQTT_TO_PG:
             query = f"""INSERT INTO log2  (timestamp, value) VALUES(%s, %s);"""
         elif msg['topic'] == self.topic3:
             query = f"""INSERT INTO log3 (timestamp, value) VALUES(%s, %s);"""
+        elif msg['topic'] == self.topic4:
+            query = f"""INSERT INTO log4 (timestamp, value) VALUES(%s, %s);"""
     
         try:
             with self.conn.cursor() as cur:
