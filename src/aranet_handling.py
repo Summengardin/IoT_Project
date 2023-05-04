@@ -23,11 +23,8 @@ class ARANET:
         self.__headers = {
             'accept': 'application/json',
             'ApiKey': f'{self.__api_key}',
-        }¨
+        }
         self.interval = interval  # seconds between each call
-
-    def send_to_queue(self, queue):
-        # Sensor name, Temperature, Pressure, Humidity, CO2
 
     def mainloop(self):
         reqs = self.get_reqs()
