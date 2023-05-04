@@ -9,17 +9,21 @@ import psycopg2
 
 class MQTT_TO_PG:
     def __init__(self, _username, _password, _port, _brokerIp, _keepalive):
-        #self.username = username
-        #self.password = password
-        #self.port = port
-        #self.brokerIp = brokerIp
-        #self.keepalive = keepalive
         self.mqtt_client = mqtt.Client()
         self.mqtt_client.username_pw_set(username = _username, password = _password)
         self.mqtt_client.on_connect = self.on_connect
         self.mqtt_client.on_message = self.on_message
         print("Connecting to mqtt-broker...")
         self.mqtt_client.connect(_brokerIp, _port, _keepalive)
+        # ============ POSTGRES ==========
+        print("Connecting to database...")
+        self.conn = psycopg2.connect(
+            host="localhost",
+            database="db_gui",
+            user="postgres",
+            password="master",
+            port="5432")
+        print("Successfully connected to database!")
         
     def set_topics (self, topic1, topic2, topic3):
         self.topic1 = topic1
@@ -55,9 +59,9 @@ class MQTT_TO_PG:
             query = f"""INSERT INTO log3 (timestamp, value) VALUES(%s, %s);"""
     
         try:
-            with conn.cursor() as cur:
+            with self.conn.cursor() as cur:
                 cur.execute(query, msg['payload'])
-                conn.commit()
+                self.conn.commit()
         except psycopg2.DatabaseError as error:
             print(error)
             return
