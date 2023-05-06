@@ -14,7 +14,7 @@ api_key = "drfk8t5k6tb576ndykq65wwyn3tee3b4" # NTNU
 # ============ MQTT ==============
 # Define mqtt-settings.
 MQTT_Broker = "158.38.66.180"
-MQTT_Port = 1883
+MQTT_Port = 9001
 MQTT_Username = 'ntnu'
 MQTT_Password = 'ntnuais2103'
 MQTT_Keepalive = 5
