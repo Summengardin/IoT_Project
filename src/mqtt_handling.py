@@ -1,4 +1,3 @@
-# NESTE GANG SKAL dataen hentes ut og sendes riktig til SQL.
 import paho.mqtt.client as mqtt
 from datetime import datetime as dt
 import pandas as pd
@@ -18,10 +17,10 @@ class MQTT_TO_PG:
         # ============ POSTGRES ==========
         print("Connecting to database...")
         self.conn = psycopg2.connect(
-            host="10.0.12.233",
-            database="postgres",
-            user="postgres",
-            password="ntnu",
+            host="localhost", # 10.0.12.233
+            database="IOTDB1",
+            user="user",
+            password="abc123",
             port="5432")
         print("Successfully connected to database!")
         
@@ -33,14 +32,6 @@ class MQTT_TO_PG:
     
     def get_client (self):
         return self.mqtt_client
-        
-    def fromJson (self, jsonString):
-        env_dict = json.loads(jsonString)
-        self.humidity = env_dict.get("Humidity")
-        self.temperature = env_dict.get("Temperature")
-        self.co2Equivalent = env_dict.get("Co2 equivalent")
-        self.breathVocEquivalent = env_dict.get("Breath voc equivalent")
-        self.pressure = env_dict.get("Pressure")
     
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -51,34 +42,54 @@ class MQTT_TO_PG:
             self.mqtt_client.subscribe(self.topic4)
         else:
             print(f"Bad connection. Code: {rc}")
-        
-    def on_message(self, client, userdata, _msg):
-        # ======= DECODE MESSAGE =======
-        msg = dict(
-            topic = _msg.topic,
-            # payload[0] = time or date, payload[1] = value
-            payload=_msg.payload.decode().split(',')
-        )
-        print(msg)
-        
-        self.fromJson (_msg)
-        query = None
-        timestamp = dt.now()
-
-        # ============== INSERTING SENSOR VALUES ==================
-        if msg['topic'] == self.topic1:
-            query = f"""INSERT INTO IoT_Assignment_5_Room1 (Time, Humidity, Temperature, co2Equivalent, BreathVocEquivalent, Pressure) VALUES(%s, %s, %s, %s, %s, %s);"""
-        elif msg['topic'] == self.topic2:
-            query = f"""INSERT INTO IoT_Assignment_5_Room2 (Time, Humidity, Temperature, co2Equivalent, BreathVocEquivalent, Pressure) VALUES(%s, %s, %s, %s, %s, %s);"""
-        elif msg['topic'] == self.topic3:
-            query = f"""INSERT INTO IoT_Assignment_5_Room3 (Time, Humidity, Temperature, co2Equivalent, BreathVocEquivalent, Pressure) VALUES(%s, %s, %s, %s, %s, %s);"""
-        elif msg['topic'] == self.topic4:
-            query = f"""INSERT INTO IoT_Assignment_5_Room4 (Time, Humidity, Temperature, co2Equivalent, BreathVocEquivalent, Pressure) VALUES(%s, %s, %s, %s, %s, %s);"""
+            
+    def on_message(self, client, userdata, msg):
+        # Decode message payload to string
+        payload_str = msg.payload.decode('utf-8')
     
+        # Parse message as JSON
+        try:
+            payload = json.loads(payload_str)
+        except ValueError as e:
+            print(f'Error parsing payload as JSON: {e}')
+            return  
+    
+        # Determine which table to insert values into based on topic
+        if msg.topic == self.topic1:
+            table = 'IoT_Assignment_5_Room1'
+        elif msg.topic == self.topic2:
+            table = 'IoT_Assignment_5_Room2'
+        elif msg.topic == self.topic3:
+            table = 'IoT_Assignment_5_Room3'
+        elif msg.topic == self.topic4:
+            table = 'IoT_Assignment_5_Room4'
+        else:
+            print(f'Unknown topic: {msg.topic}')
+            return
+    
+        # Insert values into database
+        timestamp = dt.now()
+        query = f'INSERT INTO {table} (time, humidity, temperature, co2_equivalent, breath_voc_equivalent, pressure) VALUES (%s, %s, %s, %s, %s, %s);'
+        '''
+        values = (timestamp, 
+                  payload.get('Humidity'), 
+                  payload.get('Temperature'), 
+                  payload.get('Co2 equivalent'), 
+                  payload.get('Breath voc equivalent'), 
+                  payload.get('Pressure'))
+        '''
+        values = (timestamp, 
+                  payload['Humidity'], 
+                  payload['Temperature'], 
+                  payload['Co2 equivalent'], 
+                  payload['Breath voc equivalent'], 
+                  payload['Pressure'])
+        
+        print(values)
         try:
             with self.conn.cursor() as cur:
-                cur.execute(query, (timestamp, self.humidity, self.temperature, self.co2Equivalent, self.breathVocEquivalent, self.pressure))
+                cur.execute(query, values)
                 self.conn.commit()
-        except psycopg2.DatabaseError as error:
-            print(error)
-            return
+        except psycopg2.DatabaseError as e:
+            print(f'Error inserting values into {table}: {e}')
+        

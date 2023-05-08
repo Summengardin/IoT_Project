@@ -21,7 +21,7 @@ const char topic[]="NTNU/Group23_2/Room1/Sensordata";
 
 const long interval = 1000;
 unsigned long previousMillis = 0;
-float sleepTimeMin = 10;                       // Minutes
+float sleepTimeMin = 0.06;                     // Minutes
 int sleepTime = sleepTimeMin * 60 * 1000;   // Milliseconds
 
 // Helper functions declarations
