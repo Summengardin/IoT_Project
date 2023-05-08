@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <ArduinoLowPower.h>
 #include <Adafruit_SleepyDog.h>
+#include <RTCZero.h>
 
 
 char ssid[]="NTNU-IOT"; //network name
@@ -21,8 +22,8 @@ const char topic[]="NTNU/Group23_2/Room1/Sensordata";
 
 const long interval = 1000;
 unsigned long previousMillis = 0;
-float sleepTimeMin = 0.06;                     // Minutes
-int sleepTime = sleepTimeMin * 60 * 1000;   // Milliseconds
+float sleepTime = 15;                     // Minutes
+int sleep = sleepTimeMin * 60 * 1000;   // Milliseconds
 
 // Helper functions declarations
 void checkIaqSensorStatus(void);
@@ -89,13 +90,18 @@ void setup(void)
 
   iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
   checkIaqSensorStatus();
+  // Sleep timer
+  RTCZero rtc;
+  rtc.begin();
 }
 // Function that is looped forever
 void loop(void)
 {
   mqttClient.poll();
+  checkConnection(wifiClient, mqttClient, ssid, broker, port, user, passMQTT);
   unsigned long currentMillis = millis();
-  if (iaqSensor.run()) 
+
+  if (iaqSensor.run())
   { 
     // If new data is available
     jsonDoc["Humidity"] = iaqSensor.humidity;
@@ -103,8 +109,8 @@ void loop(void)
     jsonDoc["Co2 equivalent"] = iaqSensor.co2Equivalent;
     jsonDoc["Breath voc equivalent"] = iaqSensor.breathVocEquivalent;
     jsonDoc["Pressure"] = iaqSensor.pressure;
-
-    // Serialize JSON object to string
+    
+    // JSON object to string
     String jsonStr;
     serializeJson(jsonDoc, jsonStr);
 
@@ -117,9 +123,20 @@ void loop(void)
   {
     checkIaqSensorStatus();
   }
-  delay (sleepTime);
+  
 }
 
+void sleep ()
+{
+  RTCZero rtc;
+  rtc.begin();
+  rtc.setAlarmMinutes(15);
+  rtc.enableAlarm(rtc.MATCH_MMSS);
+  rtc.standbyMode();
+  rtc.disableAlarm();
+  rtc.clearAlarm();
+}
+// Tried using low power library but the device never woke up after going to sleep.
 // void sleep (void)
 // {
 //   / Serial.println("Going into deep sleep...");
@@ -168,4 +185,36 @@ void errLeds(void)
   delay(100);
   digitalWrite(LED_BUILTIN, LOW);
   delay(100);
+}
+
+void checkConnection(WiFiClient& wifiClient, MqttClient& mqttClient, const char* ssid, const char* broker, int port, const char* user, const char* passMQTT) {
+  // Check WiFi connection
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.print("WiFi connection lost, attempting to reconnect...");
+    WiFi.disconnect();
+    delay(1000);
+    WiFi.begin(ssid);
+    unsigned long startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println();
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Failed to reconnect to WiFi");
+    }
+    Serial.println("WiFi reconnected");
+  }
+
+  // Check MQTT connection
+  if (!mqttClient.connected()) {
+    Serial.print("MQTT connection lost, attempting to reconnect...");
+    while(!mqttClient.connect(broker, port))
+    {
+      Serial.print("MQTT connection failed. Error: ");
+      Serial.println(mqttClient.connectError());
+      while(1);
+    }
+    Serial.println("MQTT reconnected");
+  }
 }
