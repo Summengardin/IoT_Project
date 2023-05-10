@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 import json
-
-
+import psycopg2
 
 class pyAranetDashboard(object):
     # --- constructor ---
@@ -21,7 +20,93 @@ class pyAranetDashboard(object):
 
         # populates dict with id's and respective sensor, metric and unit names
         self.__init_names()
+    
+    def connectToDB(self):
+        # ============ POSTGRES ==========
+        print("Connecting to database...")
+        self.conn = psycopg2.connect(
+            host="10.0.12.233",
+            database="postgres",
+            user="postgres",
+            password="ntnu",
+            port="5432")
+        print("Successfully connected to database!")
+        
+    def storeToDB(self, sensor_ids = None):
+        sensor_ids = list(self.__sensorid_table_name.keys())
+        
+        df = self.getLastReadings(sensor_ids)
 
+        if df is None:
+            return
+        
+        # ============== INSERTING SENSOR VALUES ==================
+        for sensor in df:
+            table_name = self.__sensorid_table_name[sensor['sensorid']]
+            timestamp = sensor['datetime']
+            query = f'INSERT INTO {table_name} (time, humidity, temperature, co2_equivalent, breath_voc_equivalent, pressure) VALUES (%s, %s, %s, %s, %s, %s);'
+
+            values = (timestamp, 
+                    sensor['Humidity'], 
+                    sensor['Temperature'], 
+                    sensor['CO₂'], 
+                    '-', 
+                    sensor['Atmospheric Pressure'])
+            
+            print(query, values)
+
+            '''
+            try:
+                with self.conn.cursor() as cur:
+                    cur.execute(query, values)
+                    self.conn.commit()
+            except psycopg2.DatabaseError as e:
+                print(f'Error inserting values into {table_name}: {e}')
+            '''
+
+
+    def getLastReadings(self, sensor_ids=None):
+        #sensors_list = self.get_sensors()
+
+        #sensors_list = sensors_list[0:10]
+
+        df_select_sensors = self.get_df(self.__reqs.history, sensor_ids=sensor_ids, last_n_mins=20, log=False)      
+        df_sensordata = self.make_sensor_df_readable(df_select_sensors)
+
+        
+        ''' GPT Suggestion '''
+        df_sorted = df_sensordata.sort_values(by='datetime')
+        last_values = df_sorted.groupby(['sensorid', 'metric']).agg({'sensor': 'last','value': 'last', 'datetime': 'last'}).reset_index()
+
+
+        # Pivot the table to create one row for each sensor
+        pivoted = last_values.pivot_table(index='sensorid', columns=['metric'], values=['sensor', 'value', 'datetime'])
+
+        
+        # Find column names
+        # pivoted.columns = ['_'.join(col).strip() for col in pivoted.columns.values]
+        pivoted.columns = [col[-1] for col in pivoted.columns.values]
+
+        # Reset the index to make 'sensorid' a column
+        pivoted = pivoted.reset_index()
+
+        datetime_col = df_sorted.groupby('sensorid')['datetime'].first().reset_index()
+        pivoted = pd.merge(pivoted, datetime_col, on='sensorid')
+
+        #pivoted['datetime'] = pivoted.apply(lambda x: x['temperature_datetime'], axis=1)
+
+        ''' END OF GPT Suggestion'''
+#
+        #df_to_store = pd.DataFrame(columns=['sensor-id', 'timestamp', 'temperature', 'co2', 'humidity', 'pressure'], data = df)
+
+        df_names = pd.DataFrame.from_dict(self.__sensor_names, 'index')
+        df_names = df_names.reset_index()
+        df_names.columns = ['sensorid','name']
+
+        # Merge sensors_df with original dataframe on 'sensorid' column
+        df_with_sensor = pd.merge(pivoted, df_names, on = 'sensorid', how='left')
+
+        return df_with_sensor
 
     def mainloop(self):
         sensors_list = self.get_sensors()
@@ -160,7 +245,7 @@ class pyAranetDashboard(object):
 
         # Handles multiple sensor history requests
         elif req is self.__reqs.history and last_n_mins is not None:
-
+            
             if sensor_ids is not None:
 
                 if type(sensor_ids) is list:
@@ -338,6 +423,8 @@ class pyAranetDashboard(object):
     __metrics_names = dict()
     __unit_names = dict()
     __sensor_names = dict()
+
+
 
     @dataclass
     class __All_requests:
