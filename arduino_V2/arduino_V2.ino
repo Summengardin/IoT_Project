@@ -19,7 +19,7 @@ int port = 1883;
 
 const char user[]="ntnu";
 const char passMQTT[]="ntnuais2103";
-const char topic[]="NTNU/Group23_2/Room2/Sensordata";
+const char topic[]="NTNU/Group23_2/Room3/Sensordata";
 
 const long interval = 1000;
 unsigned long previousMillis = 0;
