@@ -5,7 +5,7 @@ from datetime import datetime as dt
 class Database():
 
     def __init__(self):
-#        self.connectToDB()
+        self.connectToDB()
         print('Connected to DB')
 
     def connectToDB(self):
@@ -41,12 +41,13 @@ class Database():
                         humid = row['Humidity']
                         temp = row['Temperature']
                         timestamp = row['datetime'].to_pydatetime().replace(tzinfo=None)
-
+                        
+                        table_name = "IoT_Assignment_5_" + table_name
+                        
                         insert_row_sql = f"INSERT INTO {table_name} (pressure, co2_equivalent, humidity, temperature, time) VALUES (%s, %s, %s, %s, %s);"
                         #print(insert_row_sql, (press, co2, humid, temp, timestamp) )
                         cur.execute(insert_row_sql, (press, co2, humid, temp, timestamp))
-    
-            cur.commit()
+                self.conn.commit()
 
         except psycopg2.DatabaseError as e:
             print(f'Error inserting values into {table_name}: {e}')

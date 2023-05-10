@@ -43,19 +43,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# SQL Insertion eksempel
-# INSERT INTO IoT_Assignment_5_Room1 (time, humidity, temperature, co2_equivalent, breath_voc_equivalent, pressure) VALUES ('2023-05-08T13:49:46.103991'::timestamp, 23.54475021, 22.66646576, 617.0979004, 0.550887346, 101845);
-
-# SQL insertion format
-# query = f'INSERT INTO {table} (time, humidity, temperature, co2_equivalent, breath_voc_equivalent, pressure) VALUES (%s, %s, %s, %s, %s, %s);'
-
-# Feilen du fikk:
-
-#   File ~/Documents/Skole/4. Semester/IoT/Assignment5/IoT_Project/main.py:39 in main
-#     db.storeToDB(df = df, table_names = selected_sensors_ntnu | selected_sensors_riga)
-
-#   File ~/Documents/Skole/4. Semester/IoT/Assignment5/IoT_Project/src/postgres_handling.py:29 in storeToDB
-#     sensor_id = row['sensorid']
-
-# TypeError: tuple indices must be integers or slices, not str
