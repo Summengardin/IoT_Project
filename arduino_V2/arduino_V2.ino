@@ -1,4 +1,5 @@
 #include "bsec.h"
+#include "sam.h"
 #include <WiFiNINA.h>
 #include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
@@ -6,24 +7,24 @@
 #include <Adafruit_SleepyDog.h>
 #include <RTCZero.h>
 
-
 char ssid[]="NTNU-IOT"; //network name
 char pass[]="password"; //network password
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
+RTCZero rtc;
 
 const char broker[]="158.38.66.180";
 int port = 1883;
 
 const char user[]="ntnu";
 const char passMQTT[]="ntnuais2103";
-const char topic[]="NTNU/Group23_2/Room1/Sensordata";
+const char topic[]="NTNU/Group23_2/Room2/Sensordata";
 
 const long interval = 1000;
 unsigned long previousMillis = 0;
-float sleepTime = 15;                     // Minutes
-int sleep = sleepTimeMin * 60 * 1000;   // Milliseconds
+float sleepTimeMin = 1;                 // Minutes
+int sleepTimeSec = sleepTimeMin * 60;   // Seconds
 
 // Helper functions declarations
 void checkIaqSensorStatus(void);
@@ -91,8 +92,11 @@ void setup(void)
   iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
   checkIaqSensorStatus();
   // Sleep timer
-  RTCZero rtc;
   rtc.begin();
+  rtc.setEpoch(0);
+
+  rtc.enableAlarm (rtc.MATCH_MMSS);
+  rtc.attachInterrupt(wakeFromSleep);
 }
 // Function that is looped forever
 void loop(void)
@@ -123,18 +127,17 @@ void loop(void)
   {
     checkIaqSensorStatus();
   }
-  
+  delay (200);
+  sleep();
 }
 
 void sleep ()
 {
-  RTCZero rtc;
-  rtc.begin();
-  rtc.setAlarmMinutes(15);
+  WiFi.disconnect();
+  WiFi.end();
+  rtc.setAlarmEpoch(rtc.getEpoch() + sleepTimeSec);
   rtc.enableAlarm(rtc.MATCH_MMSS);
   rtc.standbyMode();
-  rtc.disableAlarm();
-  rtc.clearAlarm();
 }
 // Tried using low power library but the device never woke up after going to sleep.
 // void sleep (void)
@@ -217,4 +220,9 @@ void checkConnection(WiFiClient& wifiClient, MqttClient& mqttClient, const char*
     }
     Serial.println("MQTT reconnected");
   }
+}
+
+void wakeFromSleep ()
+{
+  NVIC_SystemReset();
 }
