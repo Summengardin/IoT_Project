@@ -7,6 +7,7 @@ import requests
 import json
 import psycopg2
 
+
 class pyAranetDashboard(object):
     # --- constructor ---
     def __init__(self, api = "https://aranet.cloud/api/", apikey = "", pg_conn = None):
@@ -80,18 +81,19 @@ class pyAranetDashboard(object):
 
 
         # Pivot the table to create one row for each sensor
-        pivoted = last_values.pivot_table(index='sensorid', columns=['metric'], values=['sensor', 'value', 'datetime'])
+        df_pivoted = last_values.pivot_table(index='sensorid', columns=['metric'], values=['sensor', 'value', 'datetime'])
 
         
         # Find column names
         # pivoted.columns = ['_'.join(col).strip() for col in pivoted.columns.values]
-        pivoted.columns = [col[-1] for col in pivoted.columns.values]
+        df_pivoted.columns = [col[-1] for col in df_pivoted.columns.values]
 
         # Reset the index to make 'sensorid' a column
-        pivoted = pivoted.reset_index()
+        df_pivoted = df_pivoted.reset_index()
 
         datetime_col = df_sorted.groupby('sensorid')['datetime'].first().reset_index()
-        pivoted = pd.merge(pivoted, datetime_col, on='sensorid')
+        df_pivoted = pd.merge(df_pivoted, datetime_col, on='sensorid')
+
 
         #pivoted['datetime'] = pivoted.apply(lambda x: x['temperature_datetime'], axis=1)
 
@@ -104,7 +106,7 @@ class pyAranetDashboard(object):
         df_names.columns = ['sensorid','name']
 
         # Merge sensors_df with original dataframe on 'sensorid' column
-        df_with_sensor = pd.merge(pivoted, df_names, on = 'sensorid', how='left')
+        df_with_sensor = pd.merge(df_pivoted, df_names, on = 'sensorid', how='left')
 
         return df_with_sensor
 
