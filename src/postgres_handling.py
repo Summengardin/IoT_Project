@@ -10,12 +10,22 @@ class Database():
 
     def connectToDB(self):
         # ============ POSTGRES ==========
+        # print("Connecting to database...")
+        # self.conn = psycopg2.connect(
+        #     host="localhost", # 10.0.12.233
+        #     database="IOTDB1",
+        #     user="user",
+        #     password="abc123",
+        #     port="5432")
+        # print("Successfully connected to database!")
+
+        # ============ POSTGRES TEST MARTIN ==========
         print("Connecting to database...")
         self.conn = psycopg2.connect(
             host="localhost", # 10.0.12.233
-            database="IOTDB1",
-            user="user",
-            password="abc123",
+            database="postgres",
+            user="postgres",
+            password="master",
             port="5432")
         print("Successfully connected to database!")
             
@@ -51,3 +61,13 @@ class Database():
 
         except psycopg2.DatabaseError as e:
             print(f'Error inserting values into {table_name}: {e}')
+
+    def valueIsPresent(self, table, field, value):
+        query = f"SELECT COUNT(*) FROM {table} WHERE {field} = '{value}'"
+    
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            db_value = cur.fetchone()
+        
+        return (db_value[0] != 0)
+

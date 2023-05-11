@@ -22,60 +22,18 @@ class pyAranetDashboard(object):
         # populates dict with id's and respective sensor, metric and unit names
         self.__init_names()
     
-    def connectToDB(self):
-        # ============ POSTGRES ==========
-        print("Connecting to database...")
-        self.conn = psycopg2.connect(
-            host="10.0.12.233",
-            database="postgres",
-            user="postgres",
-            password="ntnu",
-            port="5432")
-        print("Successfully connected to database!")
-        
-    def storeToDB(self, sensor_ids = None):
-        sensor_ids = list(self.__sensorid_table_name.keys())
-        
-        df = self.getLastReadings(sensor_ids)
 
-        if df is None:
-            return
+    #def sensorHasNewValue(self, sensor_id = None):
         
-        # ============== INSERTING SENSOR VALUES ==================
-        for sensor in df:
-            table_name = self.__sensorid_table_name[sensor['sensorid']]
-            timestamp = sensor['datetime']
-            query = f'INSERT INTO {table_name} (time, humidity, temperature, co2_equivalent, breath_voc_equivalent, pressure) VALUES (%s, %s, %s, %s, %s, %s);'
-
-            values = (timestamp, 
-                    sensor['Humidity'], 
-                    sensor['Temperature'], 
-                    sensor['CO₂'], 
-                    '-', 
-                    sensor['Atmospheric Pressure'])
-            
-            print(query, values)
-
-            '''
-            try:
-                with self.conn.cursor() as cur:
-                    cur.execute(query, values)
-                    self.conn.commit()
-            except psycopg2.DatabaseError as e:
-                print(f'Error inserting values into {table_name}: {e}')
-            '''
 
 
     def getLastReadings(self, sensor_ids=None):
-        #sensors_list = self.get_sensors()
 
-        #sensors_list = sensors_list[0:10]
-
-        df_select_sensors = self.get_df(self.__reqs.history, sensor_ids=sensor_ids, last_n_mins=20, log=False)      
+        df_select_sensors = self.get_df(self.__reqs.last, sensor_ids=sensor_ids, log=False)  
+        
         df_sensordata = self.make_sensor_df_readable(df_select_sensors)
 
         
-        ''' GPT Suggestion '''
         df_sorted = df_sensordata.sort_values(by='datetime')
         last_values = df_sorted.groupby(['sensorid', 'metric']).agg({'sensor': 'last','value': 'last', 'datetime': 'last'}).reset_index()
 
@@ -85,7 +43,6 @@ class pyAranetDashboard(object):
 
         
         # Find column names
-        # pivoted.columns = ['_'.join(col).strip() for col in pivoted.columns.values]
         df_pivoted.columns = [col[-1] for col in df_pivoted.columns.values]
 
         # Reset the index to make 'sensorid' a column
@@ -94,12 +51,38 @@ class pyAranetDashboard(object):
         datetime_col = df_sorted.groupby('sensorid')['datetime'].first().reset_index()
         df_pivoted = pd.merge(df_pivoted, datetime_col, on='sensorid')
 
+        df_names = pd.DataFrame.from_dict(self.__sensor_names, 'index')
+        df_names = df_names.reset_index()
+        df_names.columns = ['sensorid','name']
 
-        #pivoted['datetime'] = pivoted.apply(lambda x: x['temperature_datetime'], axis=1)
+        # Merge sensors_df with original dataframe on 'sensorid' column
+        df_with_sensor = pd.merge(df_pivoted, df_names, on = 'sensorid', how='left')
 
-        ''' END OF GPT Suggestion'''
-#
-        #df_to_store = pd.DataFrame(columns=['sensor-id', 'timestamp', 'temperature', 'co2', 'humidity', 'pressure'], data = df)
+        return df_with_sensor
+    
+    def getHistory(self, sensor_ids=None):
+
+        df_select_sensors = self.get_df(self.__reqs.history, sensor_ids=sensor_ids, days=7, log=False)  
+        
+        df_sensordata = self.make_sensor_df_readable(df_select_sensors)
+
+       
+        df_sorted = df_sensordata.sort_values(by='datetime')
+        df_values = df_sorted.groupby(['sensorid', 'datetime']).agg({'sensor': 'all'}).reset_index()
+
+        
+        # Pivot the table to create one row for each sensor
+        df_pivoted = df_sensordata.pivot_table(index=['sensorid'], columns=['metric'], values=['sensor', 'value', 'datetime'])
+        print(df_pivoted)
+        
+        # Find column names
+        df_pivoted.columns = [col[-1] for col in df_pivoted.columns.values]
+
+        # Reset the index to make 'sensorid' a column
+        df_pivoted = df_pivoted.reset_index()
+
+        datetime_col = df_sorted.groupby('sensorid')['datetime'].first().reset_index()
+        df_pivoted = pd.merge(df_pivoted, datetime_col, on='sensorid')
 
         df_names = pd.DataFrame.from_dict(self.__sensor_names, 'index')
         df_names = df_names.reset_index()
@@ -172,6 +155,10 @@ class pyAranetDashboard(object):
         elif req == self.__reqs.history and sensor_ids is not None and days is not None:
             api_url = '{0}{1}?sensor={2}&days={3}'.format(
                 self.__api_url_base, req, sensor_ids, days)
+            
+        elif req == self.__reqs.last and sensor_ids is not None:
+            api_url = '{0}{1}?sensor={2}'.format(
+                self.__api_url_base, req, sensor_ids)
 
         else:
             print("ERR in pyAranetDashboard -> get_data():\n  ")
@@ -271,7 +258,20 @@ class pyAranetDashboard(object):
 
             json_data = self.request_data(
                 req, sensor_ids, days = days, log=log)
-#            print(json_data)
+            
+        elif req is self.__reqs.last:
+            if sensor_ids is not None:
+
+                if type(sensor_ids) is list:
+                    sensor_ids = '%2C'.join(sensor_ids)
+
+            elif all_sensors:
+                sensor_ids = '%2C'.join(self.__sensor_names.keys())
+
+            json_data = self.request_data(
+                req, sensor_ids, log=log)
+
+            # print(json_data)
 
         # Returns None if arguments don't match
         else:
@@ -322,6 +322,17 @@ class pyAranetDashboard(object):
             except Exception as e:
                 print(
                     "ERR in pyAranetDashboard -> get_df():\n  {0} - try increasing time frame (no measurements received)".format(e))
+                if log:
+                    print("sensor_ids: {0}".format(sensor_ids))
+                return None
+            
+        # Formats the last DF
+        elif req == self.__reqs.last:
+            try:
+                df = pd.json_normalize(json_data['readings'])
+            except Exception as e:
+                print(
+                    "ERR in pyAranetDashboard -> get_df():\n  {0} - No measurements recieved".format(e))
                 if log:
                     print("sensor_ids: {0}".format(sensor_ids))
                 return None
@@ -434,6 +445,7 @@ class pyAranetDashboard(object):
           metrics: str
           sensors: str
           history: str
+          last: str
 
           def __post_init__(self):
             if self.bases is None:
@@ -444,3 +456,5 @@ class pyAranetDashboard(object):
                 self.sensors = 'v1/sensors'
             if self.history is None:
                 self.history = 'v1/measurements/history'
+            if self.last is None:
+                self.last = 'v1/measurements/last'
