@@ -8,7 +8,6 @@ class Database():
 
     def __init__(self):
         self.connectToDB()
-        print('Connected to DB')
 
     def connectToDB(self):
         # ============ POSTGRES ==========
@@ -115,8 +114,6 @@ class Database():
 
         cols = ','.join(list(df.columns))
 
-        print(cols)
-
         data = df.to_numpy()
         query = "INSERT INTO %s(%s) VALUES %%s" % (table_name, cols)
 
@@ -135,6 +132,5 @@ class Database():
                 print("Error: %s" % error)
                 self.conn.rollback()
         
-        print(f"the dataframe of {df.shape[0]} rows is inserted")
 
 

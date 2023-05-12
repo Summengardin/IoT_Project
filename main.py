@@ -50,11 +50,14 @@ def getLastReadings():
 
 # ====== FILL THE DB WITH DATA FROM THE LAST N DAYS OR MINUTES ======
 def fillDb(db = None, trunc = False):
-    if db is None: return
+    print("Filling the database with historic data...")
+
+    if db is None: 
+        print("Done filling the database")
+        return
 
     sensor_ids_ntnu = list(map(str, selected_sensors_ntnu.keys()))
     sensor_ids_riga = list(map(str, selected_sensors_riga.keys()))
-    sensor_ids = sensor_ids_ntnu + sensor_ids_riga
     selected_sensors = selected_sensors_ntnu | selected_sensors_riga
 
     
@@ -73,10 +76,11 @@ def fillDb(db = None, trunc = False):
         df_sub = df_sub.rename(columns={'Atmospheric Pressure':'pressure', 'CO₂':'co2_equivalent', 'Humidity': 'humidity', 'Temperature':'temperature', 'datetime':'time'})
 
         df_sub = df_sub[['pressure', 'co2_equivalent', 'humidity', 'temperature', 'time']]
-        print(df_sub)
         table_name = 'iot_assignment_5_' + selected_sensors[sensorid]
-        print(table_name)
         db.dfToDB(df_sub, table_name, trunc = trunc)
+
+    print("Done filling the database")
+    
 
 
 # ====== ADD NEW DATA IF IT IS NOT ALREADY PRESENT ======
@@ -94,8 +98,7 @@ def checkForUpdates(db = None):
         if not row_uptodate:
             db.storeToDB(series = row, table_names = selected_sensors)
             updated += 1
-    print(f"{updated} rows were updated")
-
+    print(f"{updated} tables got updated")
 
 
 def main():
