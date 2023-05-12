@@ -1,7 +1,9 @@
 from src import aranet_agris
 from src import postgres_handling as pg_handle
 import pandas as pd
+import psycopg2
 from datetime import datetime as dt
+import numpy as np
 
 # ============ API ===============
 # API BASE URL: https://aranet.cloud/api/
@@ -25,7 +27,7 @@ selected_sensors_riga = {   '4209303' : "Room9",  #RIGA, C3323
 
 
 # ====== PARAMETERS ======
-CYCLE_TIME = 5
+CYCLE_TIME = 60 # [seconds]. How often the API calls shall run
 
 
 # ====== DEFINING THE ARANET API-CALLS ======
@@ -33,53 +35,79 @@ Aranet_NTNU = aranet_agris.pyAranetDashboard(apikey = api_key_ntnu)
 Aranet_RTU = aranet_agris.pyAranetDashboard(apikey = api_key_rtu)
 
 
-def storeLastValues():
-    sensor_ids_ntnu = list(map(str, selected_sensors_ntnu.keys()))
-    sensor_ids_riga = list(map(str, selected_sensors_riga.keys()))
-    
-    df_ntnu = Aranet_NTNU.getLastReadings(sensor_ids=sensor_ids_ntnu)
-    df_riga = Aranet_RTU.getLastReadings(sensor_ids=sensor_ids_riga)
-
-    df = pd.concat([df_ntnu, df_riga])
-    df = df.reset_index()
-
-    return df
-
-def fillDb():
+# ====== READ THE LAST MEASURED VALUES ======
+def getLastReadings():
     sensor_ids_ntnu = list(map(str, selected_sensors_ntnu.keys()))
     sensor_ids_riga = list(map(str, selected_sensors_riga.keys()))
     
     df_ntnu = Aranet_NTNU.getHistory(sensor_ids=sensor_ids_ntnu)
     df_riga = Aranet_RTU.getHistory(sensor_ids=sensor_ids_riga)
 
-    print(df_ntnu)
-
     df = pd.concat([df_ntnu, df_riga])
-    df = df.reset_index()
+    df = df.reset_index(drop = True)
 
-    #return df
+    return df
 
-def checkForUpdates(db = None):
+# ====== FILL THE DB WITH DATA FROM THE LAST N DAYS OR MINUTES ======
+def fillDb(db = None, trunc = False):
+    if db is None: return
+
     sensor_ids_ntnu = list(map(str, selected_sensors_ntnu.keys()))
     sensor_ids_riga = list(map(str, selected_sensors_riga.keys()))
-    
-    df_ntnu = Aranet_NTNU.getLastReadings(sensor_ids=sensor_ids_ntnu)
-    df_riga = Aranet_RTU.getLastReadings(sensor_ids=sensor_ids_riga)
-    df = pd.concat([df_ntnu, df_riga])
-    df = df.reset_index()
+    sensor_ids = sensor_ids_ntnu + sensor_ids_riga
+    selected_sensors = selected_sensors_ntnu | selected_sensors_riga
 
-    present = db.valueIsPresent('iot_assignment_5_room5', 'time', df.at[0, 'datetime'].to_pydatetime().replace(tzinfo=None))
-    if not present:
-        db.storeToDB(df, selected_sensors_ntnu | selected_sensors_riga)
+    
+    df = pd.DataFrame()
+    for sensor_id in sensor_ids_ntnu:
+        df = pd.concat([df, Aranet_NTNU.getHistory(sensor_ids=sensor_id, days=2)])
+
+    for sensor_id in sensor_ids_riga:
+        df = pd.concat([df, Aranet_RTU.getHistory(sensor_ids=sensor_id, days=2)])
+    
+    df = df.reset_index(drop = True)
+   
+
+    for sensorid in selected_sensors.keys():
+        df_sub = df.loc[df['sensorid'] == sensorid]
+        df_sub = df_sub.rename(columns={'Atmospheric Pressure':'pressure', 'CO₂':'co2_equivalent', 'Humidity': 'humidity', 'Temperature':'temperature', 'datetime':'time'})
+
+        df_sub = df_sub[['pressure', 'co2_equivalent', 'humidity', 'temperature', 'time']]
+        print(df_sub)
+        table_name = 'iot_assignment_5_' + selected_sensors[sensorid]
+        print(table_name)
+        db.dfToDB(df_sub, table_name, trunc = trunc)
+
+
+# ====== ADD NEW DATA IF IT IS NOT ALREADY PRESENT ======
+def checkForUpdates(db = None):
+    if db is None:
+        return
+    selected_sensors = selected_sensors_ntnu | selected_sensors_riga
+    df = getLastReadings()
+
+    updated = 0
+    for i in range(df.shape[0]):
+        row = df.iloc[i]
+        table_name = 'iot_assignment_5_' + selected_sensors[row['sensorid']]
+        row_uptodate = db.valueIsPresent(table_name, 'time', row['datetime'].to_pydatetime().replace(tzinfo=None))
+        if not row_uptodate:
+            db.storeToDB(series = row, table_names = selected_sensors)
+            updated += 1
+    print(f"{updated} rows were updated")
 
 
 
 def main():
-    fillDb()
 
-    return
+    print(getLastReadings())
+
     db = pg_handle.Database()
+
     start_time = dt.now()
+
+    fillDb(db, trunc=True)
+    
     while True:
         now = dt.now()
         if (now - start_time).total_seconds() >= CYCLE_TIME:

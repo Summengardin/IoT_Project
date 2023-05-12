@@ -60,38 +60,44 @@ class pyAranetDashboard(object):
 
         return df_with_sensor
     
-    def getHistory(self, sensor_ids=None):
 
-        df_select_sensors = self.get_df(self.__reqs.history, sensor_ids=sensor_ids, days=7, log=False)  
+    def getHistory(self, sensor_ids=None, days = None, last_n_mins = None):
+        if sensor_ids is None:
+            sensor_ids = self.get_sensors()
+
+        if sensor_ids is None:
+            return None
+
+        if days is not None or last_n_mins is not None:
+            df_select_sensors = self.get_df(self.__reqs.history, sensor_ids=sensor_ids, days=days, last_n_mins=last_n_mins, log=False) 
+
+        # No days or minutes will just return the last value
+        else:
+            df_select_sensors = self.get_df(self.__reqs.last, sensor_ids=sensor_ids, log=False)
         
+
+
         df_sensordata = self.make_sensor_df_readable(df_select_sensors)
 
-       
-        df_sorted = df_sensordata.sort_values(by='datetime')
-        df_values = df_sorted.groupby(['sensorid', 'datetime']).agg({'sensor': 'all'}).reset_index()
+        if df_sensordata is None:
+            print(f"ERR: Could not recieve data for sensorid: {sensor_ids}")
+            return
 
-        
-        # Pivot the table to create one row for each sensor
-        df_pivoted = df_sensordata.pivot_table(index=['sensorid'], columns=['metric'], values=['sensor', 'value', 'datetime'])
-        print(df_pivoted)
-        
-        # Find column names
-        df_pivoted.columns = [col[-1] for col in df_pivoted.columns.values]
-
-        # Reset the index to make 'sensorid' a column
+        # Pivot the data using 'datetime' as the index, 'metric' as the columns, and 'value' as the values
+        df_pivoted = df_sensordata.pivot_table(index='datetime', columns='metric', values='value')
         df_pivoted = df_pivoted.reset_index()
 
-        datetime_col = df_sorted.groupby('sensorid')['datetime'].first().reset_index()
-        df_pivoted = pd.merge(df_pivoted, datetime_col, on='sensorid')
+        # Merge 'sensorid' and 'sensor' columns from the original DataFrame
+        df_pivoted = df_pivoted.merge(df_sensordata[['datetime', 'sensorid', 'sensor']], on='datetime')
 
-        df_names = pd.DataFrame.from_dict(self.__sensor_names, 'index')
-        df_names = df_names.reset_index()
-        df_names.columns = ['sensorid','name']
+        # Reorder the columns in the desired order
+        df_pivoted = df_pivoted.drop_duplicates(subset=['datetime', 'sensorid'])
 
-        # Merge sensors_df with original dataframe on 'sensorid' column
-        df_with_sensor = pd.merge(df_pivoted, df_names, on = 'sensorid', how='left')
+        df_pivoted['datetime'] = [ts.to_pydatetime().replace(tzinfo=None) for ts in df_pivoted['datetime']]
 
-        return df_with_sensor
+        df_pivoted = df_pivoted.reset_index(drop = True)
+
+        return df_pivoted
 
     def mainloop(self):
         sensors_list = self.get_sensors()
@@ -102,7 +108,6 @@ class pyAranetDashboard(object):
         df_sensordata = self.make_sensor_df_readable(df_select_sensors)
 
         
-        ''' GPT Suggestion '''
         df_sorted = df_sensordata.sort_values(by='datetime')
         last_values = df_sorted.groupby(['sensorid', 'metric']).agg({'sensor': 'last','value': 'last', 'datetime': 'last'}).reset_index()
 
@@ -123,7 +128,6 @@ class pyAranetDashboard(object):
 
         #pivoted['datetime'] = pivoted.apply(lambda x: x['temperature_datetime'], axis=1)
 
-        ''' END OF GPT Suggestion'''
 #
         #df_to_store = pd.DataFrame(columns=['sensor-id', 'timestamp', 'temperature', 'co2', 'humidity', 'pressure'], data = df)
 
