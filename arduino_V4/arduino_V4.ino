@@ -3,26 +3,22 @@
 #include <WiFiNINA.h>
 #include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
-//#include <ArduinoLowPower.h>
-//#include <Adafruit_SleepyDog.h>
-//#include <RTCZero.h>
 
 char ssid[]="NTNU-IOT"; //network name
 char pass[]="password"; //network password
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
-// RTCZero rtc;
 
 const char broker[]="158.38.66.180";
 int port = 1883;
 
 const char user[]="ntnu";
 const char passMQTT[]="ntnuais2103";
-const char topic[]="NTNU/Group23_2/Room1/Sensordata";
+const char topic[]="NTNU/Group23_2/Room2/Sensordata";
 
 const long interval = 1000;
-unsigned long previousMillis = 0;
+unsigned long nextTimeout = 0;
 float sleepTimeMin = 1;                   // Minutes
 int sleepTimeSec = sleepTimeMin * 60;     // Seconds
 int sleepTimeMilli = sleepTimeSec * 1000; // Milliseconds
@@ -73,7 +69,6 @@ void setup(void)
   Serial.println("You're connected to the MQTT broker!");
   Serial.println();
 
-
   bsec_virtual_sensor_t sensorList[13] = {
     BSEC_OUTPUT_IAQ,
     BSEC_OUTPUT_STATIC_IAQ,
@@ -98,7 +93,7 @@ void loop(void)
 {
   mqttClient.poll();
   checkConnection(wifiClient, mqttClient, ssid, broker, port, user, passMQTT);
-    
+
   if (iaqSensor.run())
   { 
     // If new data is available
@@ -107,37 +102,40 @@ void loop(void)
     jsonDoc["Co2 equivalent"] = iaqSensor.co2Equivalent;
     jsonDoc["Breath voc equivalent"] = iaqSensor.breathVocEquivalent;
     jsonDoc["Pressure"] = iaqSensor.pressure;
-    
-    // JSON object to string
-    String jsonStr;
-    serializeJson(jsonDoc, jsonStr);
-    mqttClient.beginMessage(topic);
-    mqttClient.print(jsonStr);
-    mqttClient.endMessage();
-    Serial.println(jsonStr);
   }
   else 
   {
     checkIaqSensorStatus();
   }
 
-  delay(sleepTimeMilli);
-    
+  // Publish if timer has ran out
+  if (timerHasExpired()) {
+    // JSON object to string
+    String jsonStr;
+    serializeJson(jsonDoc, jsonStr);
+
+    startTimer(sleepTimeMilli);
+    mqttClient.beginMessage(topic);
+    mqttClient.print(jsonStr);
+    mqttClient.endMessage();
+    Serial.println(jsonStr);
+  }
 }
 
-// Tried using low power library but the device never woke up after going to sleep.
-// void sleep (void)
-// {
-//   / Serial.println("Going into deep sleep...");
-//   // LowPower.deepSleep(sleepTime); // Putting sensor in deep sleep mode for power saving
-//   // Serial.println("Woke up from sleep.");
-//   Serial.println("Going to sleep");
-//   int sleepMS = Watchdog.sleep();
-//   Serial.print("I'm awake now! I slept for ");
-//   Serial.print(sleepMS, DEC);
-//   Serial.println(" milliseconds.");
-//   Serial.println();
-// }
+void startTimer (unsigned long timeout)
+{
+  nextTimeout = millis() + timeout;
+}
+
+bool timerHasExpired ()
+{
+  bool expired = false;
+  if (millis()>= nextTimeout)
+  {
+    expired = true;
+  }
+  return expired;
+}
 
 // Helper function definitions
 void checkIaqSensorStatus(void)
@@ -212,10 +210,3 @@ void wakeFromSleep ()
 {
   NVIC_SystemReset();
 }
-
-
-
-// Timer start
-// Sjekk tilkobling
-// Hvis timer er ute så publiser til MQTT
-// Hvis ikke timer er ute kjør videre
