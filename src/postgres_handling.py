@@ -24,9 +24,9 @@ class Database():
         print("Connecting to database...")
         self.conn = psycopg2.connect(
             host="localhost", # 10.0.12.233
-            database="postgres",
-            user="postgres",
-            password="master",
+            database="IOTDB1",
+            user="user",
+            password="abc123",
             port="5432")
         print("Successfully connected to database!")
             
