@@ -117,12 +117,6 @@ def main():
             start_time = dt.now()
             checkForUpdates(db)
 
-
-    # Get last values
-    df = load_df()
-
-    print(df)
-
     # Store to databases
     #db.storeToDB(df = df, table_names = (selected_sensors_ntnu | selected_sensors_riga))
 
