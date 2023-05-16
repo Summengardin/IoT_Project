@@ -109,7 +109,7 @@ def main():
 
     start_time = dt.now()
 
-    fillDb(db, trunc=True)
+    fillDb(db, trunc=False)
     
     while True:
         now = dt.now()
