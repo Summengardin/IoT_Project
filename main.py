@@ -1,4 +1,4 @@
-from src import aranet_agris
+from . import aranet_handling
 from src import postgres_handling as pg_handle
 import pandas as pd
 import psycopg2
@@ -31,8 +31,8 @@ CYCLE_TIME = 60 # [seconds]. How often the API calls shall run
 
 
 # ====== DEFINING THE ARANET API-CALLS ======
-Aranet_NTNU = aranet_agris.pyAranetDashboard(apikey = api_key_ntnu)
-Aranet_RTU = aranet_agris.pyAranetDashboard(apikey = api_key_rtu)
+Aranet_NTNU = aranet_handling.pyAranetDashboard(apikey = api_key_ntnu)
+Aranet_RTU = aranet_handling.pyAranetDashboard(apikey = api_key_rtu)
 
 
 # ====== READ THE LAST MEASURED VALUES ======
@@ -50,11 +50,13 @@ def getLastReadings():
 
 # ====== FILL THE DB WITH DATA FROM THE LAST N DAYS OR MINUTES ======
 def fillDb(db = None, trunc = False):
-    print("Filling the database with historic data...")
+    
 
     if db is None: 
-        print("Done filling the database")
+        print("Skips filling the database with historic data.")
         return
+    
+    print("Filling the database with historic data...")
 
     sensor_ids_ntnu = list(map(str, selected_sensors_ntnu.keys()))
     sensor_ids_riga = list(map(str, selected_sensors_riga.keys()))
@@ -79,7 +81,7 @@ def fillDb(db = None, trunc = False):
         table_name = 'iot_assignment_5_' + selected_sensors[sensorid]
         db.dfToDB(df_sub, table_name, trunc = trunc)
 
-    print("Done filling the database")
+    print("Done filling the database.")
     
 
 
